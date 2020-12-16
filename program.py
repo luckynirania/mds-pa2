@@ -64,7 +64,7 @@ if len(sys.argv) > 2:
             s = cp.Variable(shape=(n,1))
 
             objective = cp.Minimize( cp.norm(s,1)  )
-            constraint = [ (cp.norm(y - C*s, 2)) <= 1e-5 ]
+            constraint = [ (cp.norm(y - C@s, 2)) <= 1e-5 ]
 
             prob = cp.Problem(objective, constraint)
 
