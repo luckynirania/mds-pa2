@@ -1,48 +1,78 @@
 import cvxpy as cp
 import numpy as np
-import numpy as np
+import matplotlib.pyplot as plt
+import sys
+import splitter as splt
+import create_data_for_assignment as cret
+import combine_images as com
 
-def norm0(v):
-    res = 0
-    for e in v:
-        if e != 0:
-            res+=1
-    return res
+zoom, corruption = 0.2, 0.7
 
+if len(sys.argv) > 2:
+    if sys.argv[1] == '0': # reconstruct the given incomplete image
+        dir_name = sys.argv[2]
+        A_inv = np.load(dir_name + "/A_inv.npy")
+        C = np.load(dir_name + "/C.npy")
+        y = np.load(dir_name + "/y.npy")
 
-def norm1(v):
-    res = 0
-    for e in v:
-        res += abs(e)
-    return res
+        print("A_inv.shape",A_inv.shape)
+        print("C.shape",C.shape)
+        print("y.shape",y.shape)
 
-def norm2squared(v):
-    res = 0
-    for e in v:
-        res += e**2
-    return res**2
+        k, n = C.shape
 
-A_inv = np.load("data/A_inv.npy")
-C = np.load("data/C.npy")
-y = np.load("data/y.npy")
+        # Construct the problem.
+        s = cp.Variable(shape=(n,1))
 
-print("A_inv.shape",A_inv.shape)
-print("C.shape",C.shape)
-print("y.shape",y.shape)
+        objective = cp.Minimize( cp.norm(s,1)  )
+        constraint = [ (cp.norm(y - C*s, 2)) <= 1e-5 ]
 
-k,n = C.shape
+        prob = cp.Problem(objective, constraint)
 
-print("k,n:",k,n)
+        prob.solve(solver=None, verbose=True)
+        print("s.shape", s.shape)
+        ls = [each[0] for each in s.value]
 
-# Construct the problem.
-x = cp.Variable(n)
-objective = cp.Minimize( cp.norm(x,1)  )
-constraints = [ cp.sum_squares(y-np.dot(C,x)) ]
-prob = cp.Problem(objective, constraints)
+        x = np.dot(A_inv, np.array(ls))
 
-result = prob.solve()
-print(x.value)
+        x = np.transpose(x.reshape(100, 100))
+        plt.imshow(x, cmap='gray')
+        plt.title("Reconstructed")
+        plt.show()
+        plt.imsave('Reconstructed/recons_given_heat.png', x)
+        plt.imsave('Reconstructed/recons_given_grayscale.png', x, cmap='gray')
 
-# print(constraints[0].dual_value)
+    if sys.argv[1] == '1': # use our image, split, create data, reconstruct, combine
+        target_image = sys.argv[2]
+        splt.split(target_image)
+        images = ['our_data/R.png', 'our_data/G.png', 'our_data/B.png']
+        dest = ['our_data/R/', 'our_data/G/', 'our_data/B/']
+        for i in range(3):
+            cret.run(images[i], dest[i], zoom, corruption)
 
-# print(norm2squared([4.3212,2]))
+            A_inv = np.load(dest[i] + "/A_inv.npy")
+            C = np.load(dest[i] + "/C.npy")
+            y = np.load(dest[i] + "/y.npy")
+
+            print("A_inv.shape",A_inv.shape)
+            print("C.shape",C.shape)
+            print("y.shape",y.shape)
+
+            k, n = C.shape
+
+            # Construct the problem.
+            s = cp.Variable(shape=(n,1))
+
+            objective = cp.Minimize( cp.norm(s,1)  )
+            constraint = [ (cp.norm(y - C*s, 2)) <= 1e-5 ]
+
+            prob = cp.Problem(objective, constraint)
+
+            prob.solve(solver=None, verbose=True)
+            print("s.shape", s.shape)
+            ls = [each[0] for each in s.value]
+
+            x = np.dot(A_inv, np.array(ls))
+
+            np.save(dest[i] + "s_vec", x)
+        com.combine(int(zoom*100))
