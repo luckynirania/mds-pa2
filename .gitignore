@@ -1,2 +1,5 @@
 data/*
 virtualenv/*
+__pycache__/
+*.npy
+.vscode/*
